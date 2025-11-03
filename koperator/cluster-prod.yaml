@@ -1,0 +1,72 @@
+apiVersion: kafka.banzaicloud.io/v1beta1
+kind: KafkaCluster
+metadata:
+  name: my-cluster
+spec:
+  # -- KRaft mode is enabled by omitting the zookeeperConnect field --
+
+  # -- Defines the broker and controller groups, similar to Strimzi's KafkaNodePools --
+  brokerConfigGroups:
+    controller-group:
+      storageConfigs:
+        - mountPath: "/kafka-logs"
+          emptyDir: {}
+      replicas: 3
+      roles:
+        - controller
+
+    broker-group:
+      storageConfigs:
+        - mountPath: "/kafka-logs"
+          emptyDir: {}
+      replicas: 3
+      roles:
+        - broker
+
+  kafkaVersion: "3.7.0"
+
+  # -- General cluster-wide Kafka configurations --
+  config: |
+    offsets.topic.replication.factor=3
+    transaction.state.log.replication.factor=3
+    transaction.state.log.min.isr=2
+    default.replication.factor=3
+    min.insync.replicas=2
+
+  # These settings ensure consistency for topics that are created automatically by producers or consumers.
+  topicConfig:
+    "retention.ms": "604800000"   # 7 days
+    "segment.bytes": "1073741824" # 1 GB
+
+  # -- Listener configuration, equivalent to Strimzi's listeners --
+  listenersConfig:
+    internalListeners:
+      - name: plain
+        type: plaintext
+        containerPort: 9092
+        brokerConfigGroups:
+          - broker-group
+
+      - name: tls
+        type: tls
+        containerPort: 9093
+        brokerConfigGroups:
+          - broker-group
+
+  # -- Cruise Control configuration for cluster rebalancing --
+  cruiseControlConfig:
+    enabled: true
+    autoRebalance:
+      # -- Triggers a rebalance when brokers are added (scaled up) --
+      - mode: AddBroker
+        # -- Koperator uses a simplified goal list. You can customize this. --
+        # -- An empty list here uses the default hard goals. --
+        optimizationGoals: []
+
+      # -- Triggers a rebalance when brokers are removed (scaled down) --
+      - mode: RemoveBroker
+        optimizationGoals: []
+
+    # -- Defines the storage for the Cruise Control pod --
+    cruiseControlVolume:
+      emptyDir: {}

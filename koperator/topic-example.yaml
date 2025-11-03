@@ -1,0 +1,19 @@
+apiVersion: kafka.banzaicloud.io/v1beta1
+kind: KafkaTopic
+metadata:
+  # The name of the Kubernetes resource.
+  name: my-explicit-topic
+spec:
+  # The actual name of the Kafka topic.
+  name: my-explicit-topic
+  # This reference tells the Koperator which KafkaCluster this topic belongs to.
+  clusterRef:
+    name: my-cluster
+  # -- Number of partitions and replicas for the topic --
+  partitions: 12
+  replicationFactor: 3
+  # -- Topic-specific configurations that override broker defaults --
+  # The broker-level defaults are set in the `topicConfig` section of the KafkaCluster CR.
+  config:
+    "retention.ms": "259200000"   # 3 days
+    "segment.bytes": "536870912"  # 512 MB

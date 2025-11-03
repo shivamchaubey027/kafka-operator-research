@@ -1,0 +1,111 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: controller
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  replicas: 3
+  roles:
+    - controller
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: ephemeral
+        kraftMetadata: shared
+---
+
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: broker
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  replicas: 3
+  roles:
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: ephemeral
+        kraftMetadata: shared
+---
+
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: my-cluster
+spec:
+  kafka:
+    version: 4.1.0
+    metadataVersion: 4.1-IV1
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+    config:
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      default.replication.factor: 3
+      min.insync.replicas: 2
+  entityOperator:
+    # The Topic Operator can be configured with a template to apply default configurations to newly created topics.
+    topicOperator:
+      template:
+        topic:
+          config:
+            # Default retention for topics to 7 days (in milliseconds)
+            retention.ms: 604800000
+            # Default segment size for topics to 1GB (in bytes)
+            segment.bytes: 1073741824
+    userOperator: {}
+  # Cruise Control is used for cluster rebalancing to optimize load distribution across brokers.
+  cruiseControl:
+    # autoRebalance configures Cruise Control to automatically trigger rebalances
+    # for certain events, like adding or removing brokers.
+    autoRebalance:
+      # 'add-brokers' mode will automatically trigger a rebalance when new brokers are scaled up.
+      # This helps distribute the load onto the newly available brokers.
+      - mode: add-brokers
+        template:
+          name: my-add-brokers-rebalancing-template
+      # 'remove-brokers' mode will automatically trigger a rebalance when brokers are scaled down.
+      # This ensures that partitions from the removed brokers are moved to the remaining ones.
+      - mode: remove-brokers
+        template:
+          name: my-remove-brokers-rebalancing-template
+---
+# This is a KafkaRebalance template used by Cruise Control for auto-rebalancing when brokers are added.
+# It defines the parameters for the rebalancing proposal.
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaRebalance
+metadata:
+  name: my-add-brokers-rebalancing-template
+  annotations:
+    # This annotation marks the resource as a template, meaning it won't be actioned immediately.
+    # Instead, it will be used by the auto-rebalancing mechanism when triggered.
+    strimzi.io/rebalance-template: "true"
+# The spec is empty, which means Cruise Control will use its default optimization goals
+# (e.g., RackAwarenessGoal, ReplicaCapacityGoal, DiskCapacityGoal, etc.) to generate the rebalance proposal.
+# You could specify custom 'goals' here if needed.
+spec: {}
+---
+# This is a KafkaRebalance template for when brokers are removed.
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaRebalance
+metadata:
+  name: my-remove-brokers-rebalancing-template
+  annotations:
+    # This annotation marks the resource as a template.
+    strimzi.io/rebalance-template: "true"
+# An empty spec uses the default Cruise Control goals for rebalancing.
+spec: {}

@@ -1,0 +1,21 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: my-explicit-topic
+  labels:
+    # This label tells the Strimzi operator which Kafka cluster this topic belongs to.
+    strimzi.io/cluster: my-cluster
+spec:
+  # -- Number of partitions for the topic --
+  partitions: 12
+  # -- Number of replicas for each partition --
+  replicas: 3
+  # -- Topic-specific configurations that override cluster defaults --
+  # In this case, we are setting a shorter retention period for this specific topic.
+  config:
+    # Retention for this topic is 3 days (in milliseconds)
+    retention.ms: 259200000
+    # You can override any topic-level configuration here.
+    # If a value is not specified, it will fall back to the template in the Kafka CR,
+    # and then to the broker defaults.
+    segment.bytes: 536870912 # 512 MB
